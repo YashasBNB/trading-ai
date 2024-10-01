@@ -12,65 +12,74 @@ iq.connect()
 # Check if the connection was successful
 if not iq.check_connect():
     print("Failed to connect to IQ Option")
-else:
-    print("Successfully connected to IQ Option")
+    exit()
 
-# Function to check balance
-def check_balance():
-    try:
-        balance = iq.get_balance()  # Get account balance (as a float)
-        if balance is not None:
-            print(f"Balance: {balance}")
-        else:
-            print("Failed to fetch balance.")
-    except Exception as e:
-        print(f"Error fetching balance: {e}")
+# Switch to demo balance
+iq.change_balance('PRACTICE')  # Ensure the balance is set to demo mode
+print("Successfully connected to IQ Option in demo mode.")
 
-# Function to fetch trade history
-def get_trade_history():
-    try:
-        # Fetch trade history (recent trades based on lookback period)
-        current_time = int(time.time() * 1000)  # Current Unix timestamp in milliseconds
-        lookback_period = 60 * 60 * 1000  # 1 hour in milliseconds (adjust as needed)
-        start_time = current_time - lookback_period
-        status, history = iq.get_position_history_v2("digital", 50, offset=0, start=start_time, end=current_time)
-        
-        if status and history:  # Check if fetching was successful
-            print(f"Fetched {len(history['positions'])} trades.")
-            for trade in history['positions']:
-                print(f"Trade ID: {trade['id']}, Status: {trade['status']}, Profit: {trade['close_profit']}")
-        else:
-            print("No trade history found within the lookback period.")
-    except Exception as e:
-        print(f"Error fetching trade history: {e}")
-
-# Function to place a trade for binary options
+# Function to place a trade
 def place_trade(asset, direction, amount, expiry_time):
     try:
-        # Place a trade (binary options, use buy_digital_spot)
+        # Place a digital options trade
         check, trade_id = iq.buy_digital_spot(asset, amount, direction, expiry_time)
         if check:
             print(f"Trade placed successfully. Trade ID: {trade_id}")
+            return True
         else:
             print("Failed to place trade.")
-            # Check for specific error messages
-            last_error = iq.get_last_error()
-            if last_error:
-                print(f"Error message: {last_error}")
+            return False
     except Exception as e:
         print(f"Error placing trade: {e}")
+        return False
+
+# Function to check the current balance
+def get_balance():
+    return iq.get_balance()
+
+# Main function for trading based on balance comparison
+def balance_based_trading(asset, direction, amount, expiry_time, num_trades):
+    initial_balance = get_balance()
+    print(f"Initial balance: {initial_balance}")
+
+    for trade_num in range(1, num_trades + 1):
+        print(f"Starting trade number {trade_num}")
+
+        # Place a trade
+        if place_trade(asset, direction, amount, expiry_time):
+            print(f"Trade {trade_num} placed, waiting for trade to expire...")
+
+            # Wait for 2 minutes (120 seconds) to check the balance after the trade
+            time.sleep(120)
+
+            # Check the new balance
+            new_balance = get_balance()
+            print(f"New balance after trade {trade_num}: {new_balance}")
+
+            # Calculate profit or loss
+            profit_or_loss = new_balance - initial_balance
+            if profit_or_loss > 0:
+                print(f"Trade {trade_num} was profitable. Profit: {profit_or_loss}")
+            elif profit_or_loss < 0:
+                print(f"Trade {trade_num} resulted in a loss. Loss: {abs(profit_or_loss)}")
+            else:
+                print(f"Trade {trade_num} broke even.")
+
+            # Update the initial balance for the next trade
+            initial_balance = new_balance
+
+            # Wait 10 seconds before placing the next trade
+            print("Waiting 10 seconds before the next trade...")
+            time.sleep(10)
+        else:
+            print(f"Trade {trade_num} failed to place, skipping to next trade.")
 
 # Example usage
 asset = "EURUSD"  # Replace with your desired asset
-direction = "call"  # Or "put"
-amount = 10  # Adjust the amount as needed
-expiry_time = 5  # Adjust the expiry time in minutes
+direction = "call"  # Choose either "call" for buy or "put" for sell
+amount = 1  # Adjust the amount as needed
+expiry_time = 1  # Expiry time in minutes (validated by the system)
+num_trades = 5  # Number of trades to perform
 
-# Place a trade
-place_trade(asset, direction, amount, expiry_time)
-
-# Check balance
-check_balance()
-
-# Get trade history
-get_trade_history()
+# Start trading based on balance comparison
+balance_based_trading(asset, direction, amount, expiry_time, num_trades)
